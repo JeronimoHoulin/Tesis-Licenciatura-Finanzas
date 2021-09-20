@@ -57,6 +57,13 @@ class user:
 user_long = user("Jero", "01234", 10000, 1, True, 0.01)
 user_short = user("Juan","56789", 10000, -1, True, 0.01)
 
+
+
+#Donde guardo mis rdos de la simulacion
+sub = pd.DataFrame(subyacente, columns = ["Subyacente"])
+
+
+
 # RISK MANAGEMENT TOOL (CENTRALIZED) Para los cálculos del margen de cada agente
 def tool (user_long, user_short, subyacente, cantidad): #DONDE CANTIDAD DE CONTRATOS TIENE QUE COINCIDIR
         
@@ -76,14 +83,14 @@ def tool (user_long, user_short, subyacente, cantidad): #DONDE CANTIDAD DE CONTR
         print("Short cannot enter position, margin need's more funds !")
         
     # ARRAYS SEGÚN MOVIMIENTOS DE SUBYACENTE
-    sub = pd.DataFrame(subyacente, columns = ["Subyacente"])
+    #sub = pd.DataFrame(subyacente, columns = ["Subyacente"])
     sub["Change ($)"] = sub['Subyacente']-sub['Subyacente'].shift(1)
     
     sub["unreal_long"] = sub["Change ($)"]*cantidad
     sub["unreal_short"] = -sub["Change ($)"]*cantidad
     
-    sub["margin_long"] = sub["Change ($)"] * cantidad + init_margin_long
-    sub["margin_short"] = -sub["Change ($)"] * cantidad + init_margin_short
+    sub["margin_long"] = sub["unreal_long"] + init_margin_long                                  #CAMBIO 1
+    sub["margin_short"] = -sub["unreal_short"] + init_margin_short
     
     sub["margin_long"][0] = init_margin_long
     sub["margin_short"][0] = init_margin_short
@@ -93,7 +100,7 @@ def tool (user_long, user_short, subyacente, cantidad): #DONDE CANTIDAD DE CONTR
     sub["check"] = sub["margin_long"]+ sub["margin_short"]
     
     
-    #MARGIN CALLS dados = 50% call; 25% liquidation
+    # MARGIN CALLS dados = 50% call; 25% liquidation
     sub["margin_state_long"] = 0
     sub["margin_state_short"] = 0
     
@@ -102,7 +109,7 @@ def tool (user_long, user_short, subyacente, cantidad): #DONDE CANTIDAD DE CONTR
     
     for i in range(len(sub)):
         
-        #Sucesión de las cuentas de margen :
+        #Sucesión de las cuentas de margen, el margen de hoy es el de ayer más lo que se agrgó y el unreal pnl:
         if i != 0:
             sub["margin_long"][i] =  sub["margin_long"][i-1] + long_add + sub["unreal_long"][i]
             sub["margin_short"][i] =  sub["margin_short"][i-1] + short_add + sub["unreal_short"][i]
@@ -123,7 +130,7 @@ def tool (user_long, user_short, subyacente, cantidad): #DONDE CANTIDAD DE CONTR
             
         elif sub["margin_long"][i] < 0.25*(init_margin_long + long_add):
             sub["margin_state_long"][i] = "Liquidated"
-            print("You'r funds have been liquidated !")
+            print("You'r position has been liquidated !")
             break
             
         
@@ -144,7 +151,7 @@ def tool (user_long, user_short, subyacente, cantidad): #DONDE CANTIDAD DE CONTR
                 
         elif sub["margin_short"][i] < 0.25*(init_margin_short + short_add):
             sub["margin_state_short"][i] = "Liquidated"
-            print("You'r funds have been liquidated !")
+            print("You'r position has been liquidated !")
             
             
         elif sub["margin_short"][i] > 0.5*init_margin_short:
@@ -163,6 +170,20 @@ tool(user_long, user_short, subyacente, 100)
 # AGARRA INFO DEL TOOL Y DEL USUARIO, Y HACE LA TRANSFERENCIA / SETTLEMENT.
 # SOLO EJECUTA POR TEMA DE PESO DEL CÓDIGO
 def smart_contract ():
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
