@@ -16,6 +16,12 @@ subyacente = "AAPL"
 sub = yf.download(f"{subyacente}",period="1m")['Close'][0]
 
 # OPCIÓN 1: Simulación del subyacente con Movimiento Browniano con drift.
+#VARIABLES
+u = 0.1
+rf = 0.025                                      #Cambiar variables acá, principalmente por el gráfico
+num_days = 80
+sigma = 0.01
+
 def brownian_motion(S0, u, rf, num_days, sigma):  #efinimos sus variables
     dt = 1/360
     price_series = [S0]
@@ -23,13 +29,13 @@ def brownian_motion(S0, u, rf, num_days, sigma):  #efinimos sus variables
         price_series.append(price_series[-1]*(1+u*dt + sigma * np.random.normal(0, 1) * np.sqrt(dt)))
     return price_series 
 
-subyacente = brownian_motion(sub, 0.1, 0.025, 30, 0.3)
+subyacente = brownian_motion(sub, u, rf, num_days, sigma)
 
 def plot():
     fig, ax1 = plt.subplots()
     ax1.set_xlabel('Días')
     ax1.set_ylabel('Subyacente', color="blue")
-    ax1.plot(range(0,31),subyacente, color="blue")
+    ax1.plot(range(0,num_days+1),subyacente, color="blue")
     
     fig.tight_layout()
     plt.show()
@@ -54,13 +60,23 @@ class user:
         
         self.unrealised_pnl = 0
         
-user_long = user("Jero", "01234", 10000, 1, True, 0.01)
-user_short = user("Juan","56789", 10000, -1, True, 0.01)
+user_long = user("Jero", "01234", 10000, 1, True, 1/100)
+user_short = user("Juan","56789", 10000, -1, True, 1/100)       #Cambio de formato de leverage
+
+
+
+
 
 
 
 #Donde guardo mis rdos de la simulacion
 sub = pd.DataFrame(subyacente, columns = ["Subyacente"])
+
+
+
+
+
+
 
 
 
@@ -116,19 +132,19 @@ def tool (user_long, user_short, subyacente, cantidad): #DONDE CANTIDAD DE CONTR
             
         #Long
         
-        if sub["margin_long"][i] < 0.5*init_margin_long:
+        if sub["margin_long"][i] < 0.5*init_margin_long and sub["margin_long"][i] > 0.25*init_margin_long:      ##agregado de otra condicion
             sub["margin_state_long"][i] = "Called"
             print(f"Hey, {user_long.name}, you just got a margin call ! Add more funds !")
             
             #Long agrega fondos
-            long_add = int(input("Add USDT to margin:"))
+            long_add = float(input("Add USDT to margin:"))
             
             if long_add > user_long.usdt - init_margin_long:
                 print("You don't have enough USDT in the wallet !")
                 long_add = 0
 
             
-        elif sub["margin_long"][i] < 0.25*(init_margin_long + long_add):
+        elif sub["margin_long"][i] < 0.25*init_margin_long:                 #Cambios de esto: 0.25*init_margin_long + long_add
             sub["margin_state_long"][i] = "Liquidated"
             print("You'r position has been liquidated !")
             break
@@ -139,17 +155,17 @@ def tool (user_long, user_short, subyacente, cantidad): #DONDE CANTIDAD DE CONTR
             
         #Short
             
-        if sub["margin_short"][i] < 0.5*init_margin_short:
+        if sub["margin_short"][i] < 0.5*init_margin_short and sub["margin_short"][i] > 0.25*init_margin_long:
             sub["margin_state_short"][i] = "Called"
             print(f"Hey, {user_short.name}, you just got a margin call ! Add more funds !")
             
             #Short agrega fondos
-            short_add = int(input("Add USDT to margin:"))            
+            short_add = float(input("Add USDT to margin:"))            
             if short_add > user_short.usdt - init_margin_long:
                 print("You don't have enough USDT in the wallet !")
                 short_add = 0
                 
-        elif sub["margin_short"][i] < 0.25*(init_margin_short + short_add):
+        elif sub["margin_short"][i] < 0.25*init_margin_short:
             sub["margin_state_short"][i] = "Liquidated"
             print("You'r position has been liquidated !")
             
@@ -159,7 +175,7 @@ def tool (user_long, user_short, subyacente, cantidad): #DONDE CANTIDAD DE CONTR
     
     
     
-tool(user_long, user_short, subyacente, 100)
+tool(user_long, user_short, subyacente, 1)
 "user_long, user_short, subyacente, cantidad = user_long, user_short, subyacente, 100"
 
 
@@ -170,53 +186,6 @@ tool(user_long, user_short, subyacente, 100)
 # AGARRA INFO DEL TOOL Y DEL USUARIO, Y HACE LA TRANSFERENCIA / SETTLEMENT.
 # SOLO EJECUTA POR TEMA DE PESO DEL CÓDIGO
 def smart_contract ():
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
