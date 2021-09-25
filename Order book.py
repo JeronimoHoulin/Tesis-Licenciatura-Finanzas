@@ -13,6 +13,16 @@ def brownian_motion(S0, u, rf, num_days, sigma):  #efinimos sus variables
     return price_series 
 
 subyacente = brownian_motion(146, 0.1, 0.025, 30, 0.2)
+s = 0
+def create_orders(buy=True, market_price=s):
+    if buy:
+        buy_orders = [subyacente[market_price]*(1-i/1500) for i in range(3)]
+        buy_orders_size = [rd.randint(1, i) for i in range(100,10,-30)]
+        return [list(i) for i in zip(buy_orders, buy_orders_size)]
+    else:
+        sell_orders = [subyacente[market_price]*(1+i/1500) for i in range(3)]
+        sell_orders_size = [rd.randint(1, i) for i in range(100,10,-30)]
+        return [list(i) for i in zip(sell_orders,sell_orders_size)]
 
 
 # ORDER BOOK
