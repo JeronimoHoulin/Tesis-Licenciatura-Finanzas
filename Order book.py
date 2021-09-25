@@ -16,50 +16,48 @@ subyacente = brownian_motion(146, 0.1, 0.025, 30, 0.2)
 
 
 # ORDER BOOK
-buy_orders = [subyacente[0]*(1-i/1500) for i in range(10)]
-buy_orders_size = [rd.randint(1, i) for i in range(110,10,-10)]
-order_book_b = pd.DataFrame({'Price': buy_orders, 'Size':buy_orders_size}).sort_values(by=['Price'], ascending=False).reset_index(drop=True)
+trades = pd.DataFrame(columns=['Price','Size', 'Market Price'])
 
-
-sell_orders = [subyacente[0]*(1+i/1500) for i in range(10)]
-sell_orders_size = [rd.randint(1, i) for i in range(110,10,-10)]
-order_book_s = pd.DataFrame({'Price': sell_orders, 'Size':sell_orders_size}).sort_values(by=['Price']).reset_index(drop=True)
-
-order_book = order_book_s.sort_values(by=['Price'], ascending=False).append(order_book_b)
-
-trades = pd.DataFrame(columns=['Price','Size'])
+order_book_b = pd.DataFrame(create_orders(), columns=['Price', 'Size']).sort_values(by=['Price'], ascending=False).reset_index(drop=True)
+order_book_s = pd.DataFrame(create_orders(False), columns=['Price', 'Size']).sort_values(by=['Price']).reset_index(drop=True)
 
 # MATCHING ALGORITHM
-for s in range(1, len(subyacente)):
-
-    for i in range(8):
-        for j in range(8): 
-            if order_book_b['Price'][i] >= order_book_s['Price'][j] and order_book_b['Size'][i] > 0 and order_book_s['Price'][j] > 0:
-                price = order_book_b['Price'][i]
-                size = min(order_book_b['Size'][i], order_book_s['Size'][j])
-                trades.loc[i]=[price, size]
-                print(f'\n {size} DCFDs entered at ${round(price,2)} \n')
+trade = 0
+print("\n SELL", order_book_s.sort_values(by=['Price'], ascending=False))
+print("\n BUY", order_book_b)
+for s in range(len(subyacente)):
+    while max(order_book_b['Price']) >= min(order_book_s['Price']):
+        if order_book_b['Price'][0] >= order_book_s['Price'][0]:
+            trade += 1 
+            price = order_book_b['Price'][0]
+            size = min(order_book_b['Size'][0], order_book_s['Size'][0])
+            trades.loc[trade]=[price, size, subyacente[s]]
+            print(f'\n {size} DCFDs entered at ${round(price,2)}')
+            
+            order_book_b['Size'][0] -= size 
+            order_book_s['Size'][0] -= size 
+            
+            if order_book_b['Size'][0] == 0:
+                order_book_b = order_book_b.drop(0).reset_index(drop=True)
+                print('Order gone from Buy order book')
+                print("\n SELL", order_book_s.sort_values(by=['Price'], ascending=False))
+                print("\n BUY", order_book_b)
+                print("\n -------------------------")
                 
-                order_book_b['Size'][i] -= size 
-                if order_book_b['Size'][i] == 0:
-                    order_book_b = order_book_b.drop(i).reset_index(drop=True)
-                    print('Order gone from Buy order book')
-                
-                order_book_s['Size'][j] -= size 
-                if order_book_s['Size'][j] == 0:
-                    order_book_s = order_book_s.drop(j).reset_index(drop=True)
-                    print('Order gone from Sell order book')
-    
-    buy_orders = [subyacente[s]*(1-i/1500) for i in range(3)]
-    buy_orders_size = [rd.randint(1, i) for i in range(100,10,-30)]
-    new_buy_orders=[[i,j] for i in buy_orders for j in buy_orders_size]
+            if order_book_s['Size'][0] == 0:
+                order_book_s = order_book_s.drop(0).reset_index(drop=True)
+                print('Order gone from Sell order book')
+                print("\n SELL", order_book_s.sort_values(by=['Price'], ascending=False))
+                print("\n BUY", order_book_b)
+                print("\n -------------------------")     
+    #New orders
+    new_buy_orders=create_orders(market_price=s)
     for order in range(3):
-        order_book_b.loc[len(order_book_b)+i] = new_buy_orders[order]
-    order_book_b.sort_values(by=['Price'], ascending=False).reset_index(drop=True)
+        order_book_b.loc[len(order_book_b)+s] = new_buy_orders[order]
+    order_book_b = order_book_b.sort_values(by=['Price'], ascending=False).reset_index(drop=True)
     
-    sell_orders = [subyacente[s]*(1-i/1500) for i in range(3)]
-    sell_orders_size = [rd.randint(1, i) for i in range(100,10,-30)]
-    new_sell_orders=[[i,j] for i in sell_orders for j in sell_orders_size]
+    new_sell_orders=create_orders(False,market_price=s)
     for order in range(3):
-        order_book_s.loc[len(order_book_s)+i] = new_sell_orders[order]
-    order_book_s.sort_values(by=['Price']).reset_index(drop=True)
+        order_book_s.loc[len(order_book_s)+s] = new_sell_orders[order]
+    order_book_s = order_book_s.sort_values(by=['Price']).reset_index(drop=True)
+    time.sleep(2)
