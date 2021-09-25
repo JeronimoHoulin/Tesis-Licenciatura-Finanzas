@@ -1,8 +1,6 @@
 """
 Created on Sat Sep 18 09:49:34 2021
-
 Jero & Juan
-
 """
 import pandas as pd
 import numpy as np
@@ -60,8 +58,11 @@ class user:
         
         self.unrealised_pnl = 0
         
-user_long = user("Jero", "01234", 10000, 1, True, 1/100)
-user_short = user("Juan","56789", 10000, -1, True, 1/100)       #Cambio de formato de leverage
+user_long = user("Jero", "01234", 10000, 1, True, 100)
+user_short = user("Juan","56789", 10000, -1, True, 100)      #Cambio de formato de leverage
+
+
+
 
 
 
@@ -75,109 +76,116 @@ sub = pd.DataFrame(subyacente, columns = ["Subyacente"])
 
 
 
+#variables
+user_long, user_short, subyacente, cantidad = user_long, user_short, subyacente, 1
 
 
 
 
 
-# RISK MANAGEMENT TOOL (CENTRALIZED) Para los cálculos del margen de cada agente
-def tool (user_long, user_short, subyacente, cantidad): #DONDE CANTIDAD DE CONTRATOS TIENE QUE COINCIDIR
+
+
+
+
+
+# RISK MANAGEMENT TOOL (CENTRALIZED) Para los cálculos del margen de cada agente        
+# DATOS INICIALES T = 0
+#Crear el margin pool
+margin_pool = subyacente[0] * cantidad / ( user_short.leverage + user_long.leverage)
+print("\n \n Margin pool total:", round(margin_pool,2))
+
+#Devolver cuanto margen necesita poner cada usuario
+init_margin_long =  subyacente[0] * cantidad / user_long.leverage
+init_margin_short = subyacente[0] * cantidad / user_short.leverage
+
+#Checkeo de si les dá el balance en USDT para entrar en el contrato
+if init_margin_long > user_long.usdt:
+    print("Long cannot enter position, margin need's more funds !")
+elif init_margin_short > user_short.usdt:
+    print("Short cannot enter position, margin need's more funds !")
+    
+# ARRAYS SEGÚN MOVIMIENTOS DE SUBYACENTE
+#sub = pd.DataFrame(subyacente, columns = ["Subyacente"])
+sub["Change ($)"] = sub['Subyacente']-sub['Subyacente'].shift(1)
+
+sub["unreal_long"] = sub["Change ($)"]*cantidad
+sub["unreal_short"] = -sub["Change ($)"]*cantidad
+
+sub["margin_long"] = sub["unreal_long"] + init_margin_long                                  #CAMBIO 1
+sub["margin_short"] = -sub["unreal_short"] + init_margin_short
+
+sub["margin_long"][0] = init_margin_long
+sub["margin_short"][0] = init_margin_short
+
+# CHECKEO de que en todo momento el nivel de margen en el pool coincida con el margen de las dos cuentas
+# Tiene que ser en todo momento = 1460.6
+sub["check"] = sub["margin_long"]+ sub["margin_short"]
+
+
+# MARGIN CALLS dados = 50% call; 25% liquidation
+sub["margin_state_long"] = 0
+sub["margin_state_short"] = 0
+
+long_add = 0
+short_add = 0
+
+
+
+
+
+for i in range(len(sub)):
+    
+    #Sucesión de las cuentas de margen, el margen de hoy es el de ayer más lo que se agrgó y el unreal pnl:
+    if i != 0:
+        sub["margin_long"][i] =  sub["margin_long"][i-1] + long_add + sub["unreal_long"][i]
+        sub["margin_short"][i] =  sub["margin_short"][i-1] + short_add + sub["unreal_short"][i]
         
-    # DATOS INICIALES T = 0
-    #Crear el margin pool
-    margin_pool = subyacente[0] * cantidad * ( user_short.leverage + user_long.leverage)
-    print("\n \n Margin pool total:", round(margin_pool,2))
-    
-    #Devolver cuanto margen necesita poner cada usuario
-    init_margin_long = user_long.leverage * subyacente[0] * cantidad
-    init_margin_short = user_short.leverage * subyacente[0] * cantidad
-    
-    #Checkeo de si les dá el balance en USDT para entrar en el contrato
-    if init_margin_long > user_long.usdt:
-        print("Long cannot enter position, margin need's more funds !")
-    elif init_margin_short > user_short.usdt:
-        print("Short cannot enter position, margin need's more funds !")
+    #Long
+        #jero ver de agregar leverage
+    if sub["margin_long"][i] < 0.5*init_margin_long and sub["margin_long"][i] > 0.25*init_margin_long:      ##agregado de otra condicion
+        sub["margin_state_long"][i] = "Called"
+        print(f"Hey, {user_long.name}, you just got a margin call ! Add more funds !")
         
-    # ARRAYS SEGÚN MOVIMIENTOS DE SUBYACENTE
-    #sub = pd.DataFrame(subyacente, columns = ["Subyacente"])
-    sub["Change ($)"] = sub['Subyacente']-sub['Subyacente'].shift(1)
-    
-    sub["unreal_long"] = sub["Change ($)"]*cantidad
-    sub["unreal_short"] = -sub["Change ($)"]*cantidad
-    
-    sub["margin_long"] = sub["unreal_long"] + init_margin_long                                  #CAMBIO 1
-    sub["margin_short"] = -sub["unreal_short"] + init_margin_short
-    
-    sub["margin_long"][0] = init_margin_long
-    sub["margin_short"][0] = init_margin_short
-    
-    # CHECKEO de que en todo momento el nivel de margen en el pool coincida con el margen de las dos cuentas
-    # Tiene que ser en todo momento = 1460.6
-    sub["check"] = sub["margin_long"]+ sub["margin_short"]
-    
-    
-    # MARGIN CALLS dados = 50% call; 25% liquidation
-    sub["margin_state_long"] = 0
-    sub["margin_state_short"] = 0
-    
-    long_add = 0
-    short_add = 0
-    
-    for i in range(len(sub)):
+        #Long agrega fondos
+        long_add = float(input("Add USDT to margin:"))
         
-        #Sucesión de las cuentas de margen, el margen de hoy es el de ayer más lo que se agrgó y el unreal pnl:
-        if i != 0:
-            sub["margin_long"][i] =  sub["margin_long"][i-1] + long_add + sub["unreal_long"][i]
-            sub["margin_short"][i] =  sub["margin_short"][i-1] + short_add + sub["unreal_short"][i]
-            
-        #Long
-        
-        if sub["margin_long"][i] < 0.5*init_margin_long and sub["margin_long"][i] > 0.25*init_margin_long:      ##agregado de otra condicion
-            sub["margin_state_long"][i] = "Called"
-            print(f"Hey, {user_long.name}, you just got a margin call ! Add more funds !")
-            
-            #Long agrega fondos
-            long_add = float(input("Add USDT to margin:"))
-            
-            if long_add > user_long.usdt - init_margin_long:
-                print("You don't have enough USDT in the wallet !")
-                long_add = 0
+        if long_add > user_long.usdt - init_margin_long:
+            print("You don't have enough USDT in the wallet !")
+            long_add = 0
 
-            
-        elif sub["margin_long"][i] < 0.25*init_margin_long:                 #Cambios de esto: 0.25*init_margin_long + long_add
-            sub["margin_state_long"][i] = "Liquidated"
-            print("You'r position has been liquidated !")
-            break
-            
         
-        elif sub["margin_long"][i] > 0.5*init_margin_long:
-             long_add = 0
-            
-        #Short
-            
-        if sub["margin_short"][i] < 0.5*init_margin_short and sub["margin_short"][i] > 0.25*init_margin_long:
-            sub["margin_state_short"][i] = "Called"
-            print(f"Hey, {user_short.name}, you just got a margin call ! Add more funds !")
-            
-            #Short agrega fondos
-            short_add = float(input("Add USDT to margin:"))            
-            if short_add > user_short.usdt - init_margin_long:
-                print("You don't have enough USDT in the wallet !")
-                short_add = 0
-                
-        elif sub["margin_short"][i] < 0.25*init_margin_short:
-            sub["margin_state_short"][i] = "Liquidated"
-            print("You'r position has been liquidated !")
-            
-            
-        elif sub["margin_short"][i] > 0.5*init_margin_short:
-             short_add = 0
+    elif sub["margin_long"][i] < 0.25*init_margin_long:                 #Cambios de esto: 0.25*init_margin_long + long_add
+        sub["margin_state_long"][i] = "Liquidated"
+        print("You'r position has been liquidated !")
+        break
+        
     
-    
-    
-tool(user_long, user_short, subyacente, 1)
-"user_long, user_short, subyacente, cantidad = user_long, user_short, subyacente, 100"
+    elif sub["margin_long"][i] > 0.5*init_margin_long:
+         long_add = 0
+        
+    #Short
+        
+    if sub["margin_short"][i] < 0.5*init_margin_short and sub["margin_short"][i] > 0.25*init_margin_long:
+        sub["margin_state_short"][i] = "Called"
+        print(f"Hey, {user_short.name}, you just got a margin call ! Add more funds !")
+        
+        #Short agrega fondos
+        short_add = float(input("Add USDT to margin:"))            
+        if short_add > user_short.usdt - init_margin_long:
+            print("You don't have enough USDT in the wallet !")
+            short_add = 0
+            
+    elif sub["margin_short"][i] < 0.25*init_margin_short:
+        sub["margin_state_short"][i] = "Liquidated"
+        print("You'r position has been liquidated !")
+        
+        
+    elif sub["margin_short"][i] > 0.5*init_margin_short:
+         short_add = 0
 
+# IF SALIDO 
+    
+    
 
 # Simulación del Smart Contract, dado el movimiento del subyacente. 
 
@@ -185,7 +193,11 @@ tool(user_long, user_short, subyacente, 1)
 # Definir el wallet del smart contract
 # AGARRA INFO DEL TOOL Y DEL USUARIO, Y HACE LA TRANSFERENCIA / SETTLEMENT.
 # SOLO EJECUTA POR TEMA DE PESO DEL CÓDIGO
-def smart_contract ():
-
-
-
+def smart_contract (user_long, user_short, ):
+    
+    #ARMA UN FONDO = margin pool (que tiene una wallet id)
+    
+    
+    
+    
+    
