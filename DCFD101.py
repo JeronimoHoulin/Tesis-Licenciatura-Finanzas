@@ -132,6 +132,8 @@ sub["margin_state_long"] = 0
 sub["margin_state_short"] = 0
 
 
+
+
 long_add = 0
 short_add = 0
 
@@ -149,12 +151,12 @@ for i in range(len(sub)):
         sub["margin_long"][i] =  sub["margin_long"][i-1] + long_add + sub["longpnl"][i] - sub["longpnl"][i-1]
         sub["margin_short"][i] =  sub["margin_short"][i-1] + short_add + sub["shortpnl"][i]- sub["shortpnl"][i-1]
         
-        sub["margin_long1"][i] =  sub["margin_long1"][i-1] + long_add + sub["unreal_long1"][i]
-        sub["margin_short1"][i] =  sub["margin_short1"][i-1] + short_add + sub["unreal_short1"][i]
+        #sub["margin_long1"][i] =  sub["margin_long1"][i-1] + long_add + sub["unreal_long1"][i]
+        #sub["margin_short1"][i] =  sub["margin_short1"][i-1] + short_add + sub["unreal_short1"][i]
         
     #Long
         # SI mi PNL POR leverage es menor a -0.8 ; CALL
-    if sub["long_risk"][i] < -0.50 and sub["long_risk"] > -0.8:
+    if sub["long_risk"][i] < -0.50 and sub["long_risk"][i] > -0.8:
     #if sub["margin_long"][i] < 0.5*init_margin_long and sub["margin_long"][i] > 0.25*init_margin_long:      ##agregado de otra condicion
         sub["margin_state_long"][i] = "Called"
         print(f"Hey, {user_long.name}, you just got a margin call ! Add more funds !")
@@ -215,4 +217,6 @@ for i in range(len(sub)):
 def smart_contract (user_long, user_short, ):
     
     #ARMA UN FONDO = margin pool (que tiene una wallet id)
+    
+    
     
