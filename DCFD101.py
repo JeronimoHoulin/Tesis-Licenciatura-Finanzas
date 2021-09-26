@@ -18,7 +18,7 @@ subya = yf.download(f"{subyacente}",period="1m")['Close'][0]
 u = 0.1
 rf = 0.025                                      
 num_days = 80
-sigma = 0.01
+sigma = 0.5
 
 def brownian_motion(S0, u, rf, num_days, sigma):  
     dt = 1/360
@@ -61,8 +61,8 @@ class user:
         
         self.unrealised_pnl = 0
         
-user_long = user("Jero", "01234", 10000, 1, True, 100)
-user_short = user("Juan","56789", 10000, -1, True, 100)      #Cambio de formato de leverage
+user_long = user("Jero", "01234", 10000, 1, True, 10)
+user_short = user("Juan","56789", 10000, -1, True, 10)      #Cambio de formato de leverage
 
 
 
@@ -115,11 +115,11 @@ sub["margin_short"] = init_margin_short
 
 sub["Change ($)"] = sub['Subyacente']-sub['Subyacente'].shift(1)
 
-sub["unreal_long"] = sub["Change ($)"]*cantidad
-sub["unreal_short"] = -sub["Change ($)"]*cantidad
+sub["unreal_long1"] = sub["Change ($)"]*cantidad
+sub["unreal_short1"] = -sub["Change ($)"]*cantidad
 
-sub["margin_long1"] = sub["unreal_long"] + init_margin_long                                  #CAMBIO 1
-sub["margin_short1"] = -sub["unreal_short"] + init_margin_short
+sub["margin_long1"] = sub["unreal_long1"] + init_margin_long                                  #CAMBIO 1
+sub["margin_short1"] = -sub["unreal_short1"] + init_margin_short
 
 sub["margin_long1"][0] = init_margin_long
 sub["margin_short1"][0] = init_margin_short
@@ -132,16 +132,13 @@ sub["margin_state_long"] = 0
 sub["margin_state_short"] = 0
 
 
-
-
-
 long_add = 0
 short_add = 0
 
 for i in range(len(sub)):
     
-    sub["long_risk"][i] = user_long.leverage * (((sub["Subyacente"][i] + long_add) / entryprice_long) -1)
-    sub["short_risk"][i] = -user_short.leverage * (((sub["Subyacente"][i] - short_add) / entryprice_short) -1 )
+    sub["long_risk"] = user_long.leverage * (((sub["Subyacente"] + long_add) / entryprice_long) -1)  
+    sub["short_risk"] = -user_short.leverage * (((sub["Subyacente"] - short_add) / entryprice_short) -1 )
     
     sub["longpnl"] = ((sub["Subyacente"] / entryprice_long) -1) * cantidad * entryprice_long
     sub["shortpnl"] = -((sub["Subyacente"] / entryprice_short) -1) * cantidad * entryprice_long
@@ -152,8 +149,8 @@ for i in range(len(sub)):
         sub["margin_long"][i] =  sub["margin_long"][i-1] + long_add + sub["longpnl"][i] - sub["longpnl"][i-1]
         sub["margin_short"][i] =  sub["margin_short"][i-1] + short_add + sub["shortpnl"][i]- sub["shortpnl"][i-1]
         
-        sub["margin_long1"][i] =  sub["margin_long1"][i-1] + long_add + sub["unreal_long"][i]
-        sub["margin_short1"][i] =  sub["margin_short1"][i-1] + short_add + sub["unreal_short"][i]
+        sub["margin_long1"][i] =  sub["margin_long1"][i-1] + long_add + sub["unreal_long1"][i]
+        sub["margin_short1"][i] =  sub["margin_short1"][i-1] + short_add + sub["unreal_short1"][i]
         
     #Long
         # SI mi PNL POR leverage es menor a -0.8 ; CALL
@@ -218,6 +215,4 @@ for i in range(len(sub)):
 def smart_contract (user_long, user_short, ):
     
     #ARMA UN FONDO = margin pool (que tiene una wallet id)
-    
-    
     
