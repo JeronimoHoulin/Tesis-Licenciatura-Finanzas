@@ -11,23 +11,23 @@ import matplotlib.pyplot as plt
 # Definir su activo subyacente
 subyacente = "AAPL"
 
-sub = yf.download(f"{subyacente}",period="1m")['Close'][0]
+subya = yf.download(f"{subyacente}",period="1m")['Close'][0]
 
 # OPCIÓN 1: Simulación del subyacente con Movimiento Browniano con drift.
 #VARIABLES
 u = 0.1
-rf = 0.025                                      #Cambiar variables acá, principalmente por el gráfico
+rf = 0.025                                      
 num_days = 80
 sigma = 0.01
 
-def brownian_motion(S0, u, rf, num_days, sigma):  #efinimos sus variables
+def brownian_motion(S0, u, rf, num_days, sigma):  
     dt = 1/360
     price_series = [S0]
     for i in range(num_days):
         price_series.append(price_series[-1]*(1+u*dt + sigma * np.random.normal(0, 1) * np.sqrt(dt)))
     return price_series 
 
-subyacente = brownian_motion(sub, u, rf, num_days, sigma)
+subyacente = brownian_motion(subya, u, rf, num_days, sigma)
 
 def plot():
     fig, ax1 = plt.subplots()
@@ -40,6 +40,9 @@ def plot():
 plot()
 
 
+
+#Donde guardo mis rdos de la simulacion
+sub = pd.DataFrame(subyacente, columns = ["Subyacente"])
 
 # OPCIÓN 2: XXX
 
@@ -67,23 +70,21 @@ user_short = user("Juan","56789", 10000, -1, True, 100)      #Cambio de formato 
 
 
 
-
-
-
-#Donde guardo mis rdos de la simulacion
-sub = pd.DataFrame(subyacente, columns = ["Subyacente"])
-
-
-
-
 #variables
 user_long, user_short, subyacente, cantidad = user_long, user_short, subyacente, 1
 
 
 
 
+#Oder book
 
 
+
+
+
+
+entryprice_long = subya
+entryprice_short = subya
 
 
 
@@ -91,12 +92,12 @@ user_long, user_short, subyacente, cantidad = user_long, user_short, subyacente,
 # RISK MANAGEMENT TOOL (CENTRALIZED) Para los cálculos del margen de cada agente        
 # DATOS INICIALES T = 0
 #Crear el margin pool
-margin_pool = subyacente[0] * cantidad / ( user_short.leverage + user_long.leverage)
+margin_pool = (entryprice_long * cantidad) / user_long.leverage   +   (entryprice_short * cantidad) / user_short.leverage
 print("\n \n Margin pool total:", round(margin_pool,2))
 
 #Devolver cuanto margen necesita poner cada usuario
-init_margin_long =  subyacente[0] * cantidad / user_long.leverage
-init_margin_short = subyacente[0] * cantidad / user_short.leverage
+init_margin_long =  subya * cantidad / user_long.leverage
+init_margin_short = subya * cantidad / user_short.leverage
 
 #Checkeo de si les dá el balance en USDT para entrar en el contrato
 if init_margin_long > user_long.usdt:
@@ -104,84 +105,105 @@ if init_margin_long > user_long.usdt:
 elif init_margin_short > user_short.usdt:
     print("Short cannot enter position, margin need's more funds !")
     
-# ARRAYS SEGÚN MOVIMIENTOS DE SUBYACENTE
-#sub = pd.DataFrame(subyacente, columns = ["Subyacente"])
+
+
+
+
+sub["margin_long"] = init_margin_long
+sub["margin_short"] = init_margin_short
+
+
 sub["Change ($)"] = sub['Subyacente']-sub['Subyacente'].shift(1)
 
 sub["unreal_long"] = sub["Change ($)"]*cantidad
 sub["unreal_short"] = -sub["Change ($)"]*cantidad
 
-sub["margin_long"] = sub["unreal_long"] + init_margin_long                                  #CAMBIO 1
-sub["margin_short"] = -sub["unreal_short"] + init_margin_short
+sub["margin_long1"] = sub["unreal_long"] + init_margin_long                                  #CAMBIO 1
+sub["margin_short1"] = -sub["unreal_short"] + init_margin_short
 
-sub["margin_long"][0] = init_margin_long
-sub["margin_short"][0] = init_margin_short
+sub["margin_long1"][0] = init_margin_long
+sub["margin_short1"][0] = init_margin_short
 
-# CHECKEO de que en todo momento el nivel de margen en el pool coincida con el margen de las dos cuentas
-# Tiene que ser en todo momento = 1460.6
+
 sub["check"] = sub["margin_long"]+ sub["margin_short"]
-
 
 # MARGIN CALLS dados = 50% call; 25% liquidation
 sub["margin_state_long"] = 0
 sub["margin_state_short"] = 0
 
+
+
+
+
 long_add = 0
 short_add = 0
 
-
-
-
-
 for i in range(len(sub)):
+    
+    sub["long_risk"][i] = user_long.leverage * (((sub["Subyacente"][i] + long_add) / entryprice_long) -1)
+    sub["short_risk"][i] = -user_short.leverage * (((sub["Subyacente"][i] - short_add) / entryprice_short) -1 )
+    
+    sub["longpnl"] = ((sub["Subyacente"] / entryprice_long) -1) * cantidad * entryprice_long
+    sub["shortpnl"] = -((sub["Subyacente"] / entryprice_short) -1) * cantidad * entryprice_long
+    
     
     #Sucesión de las cuentas de margen, el margen de hoy es el de ayer más lo que se agrgó y el unreal pnl:
     if i != 0:
-        sub["margin_long"][i] =  sub["margin_long"][i-1] + long_add + sub["unreal_long"][i]
-        sub["margin_short"][i] =  sub["margin_short"][i-1] + short_add + sub["unreal_short"][i]
+        sub["margin_long"][i] =  sub["margin_long"][i-1] + long_add + sub["longpnl"][i] - sub["longpnl"][i-1]
+        sub["margin_short"][i] =  sub["margin_short"][i-1] + short_add + sub["shortpnl"][i]- sub["shortpnl"][i-1]
+        
+        sub["margin_long1"][i] =  sub["margin_long1"][i-1] + long_add + sub["unreal_long"][i]
+        sub["margin_short1"][i] =  sub["margin_short1"][i-1] + short_add + sub["unreal_short"][i]
         
     #Long
-        #jero ver de agregar leverage
-    if sub["margin_long"][i] < 0.5*init_margin_long and sub["margin_long"][i] > 0.25*init_margin_long:      ##agregado de otra condicion
+        # SI mi PNL POR leverage es menor a -0.8 ; CALL
+    if sub["long_risk"][i] < -0.50 and sub["long_risk"] > -0.8:
+    #if sub["margin_long"][i] < 0.5*init_margin_long and sub["margin_long"][i] > 0.25*init_margin_long:      ##agregado de otra condicion
         sub["margin_state_long"][i] = "Called"
         print(f"Hey, {user_long.name}, you just got a margin call ! Add more funds !")
         
         #Long agrega fondos
-        long_add = float(input("Add USDT to margin:"))
+        long_ask = float(input("Add USDT to margin:"))
         
-        if long_add > user_long.usdt - init_margin_long:
+        if long_ask > user_long.usdt - init_margin_long:
             print("You don't have enough USDT in the wallet !")
-            long_add = 0
+            long_add += 0
+        else:
+            long_add += long_ask
 
         
-    elif sub["margin_long"][i] < 0.25*init_margin_long:                 #Cambios de esto: 0.25*init_margin_long + long_add
+    elif sub["long_risk"][i] < -0.8:                 #Cambios de esto: 0.25*init_margin_long + long_add
         sub["margin_state_long"][i] = "Liquidated"
         print("You'r position has been liquidated !")
         break
         
     
-    elif sub["margin_long"][i] > 0.5*init_margin_long:
-         long_add = 0
+    elif sub["long_risk"][i] > -0.5:
+         long_add += 0
         
     #Short
-        
-    if sub["margin_short"][i] < 0.5*init_margin_short and sub["margin_short"][i] > 0.25*init_margin_long:
+    
+    if sub["short_risk"][i] < -0.50 and sub["short_risk"][i] > -0.8:
+    #if sub["margin_short"][i] < 0.5*init_margin_short and sub["margin_short"][i] > 0.25*init_margin_long:
         sub["margin_state_short"][i] = "Called"
         print(f"Hey, {user_short.name}, you just got a margin call ! Add more funds !")
         
         #Short agrega fondos
-        short_add = float(input("Add USDT to margin:"))            
-        if short_add > user_short.usdt - init_margin_long:
+        short_ask = float(input("Add USDT to margin:"))    
+        
+        if short_ask > user_short.usdt - init_margin_short:
             print("You don't have enough USDT in the wallet !")
-            short_add = 0
+            short_add += 0
+        else:
+            short_add += short_ask
             
-    elif sub["margin_short"][i] < 0.25*init_margin_short:
+    elif sub["short_risk"][i] < -0.8:
         sub["margin_state_short"][i] = "Liquidated"
         print("You'r position has been liquidated !")
         
         
-    elif sub["margin_short"][i] > 0.5*init_margin_short:
-         short_add = 0
+    elif sub["short_risk"][i] > -0.5:
+         short_add += 0
 
 # IF SALIDO 
     
@@ -196,8 +218,6 @@ for i in range(len(sub)):
 def smart_contract (user_long, user_short, ):
     
     #ARMA UN FONDO = margin pool (que tiene una wallet id)
-    
-    
     
     
     
