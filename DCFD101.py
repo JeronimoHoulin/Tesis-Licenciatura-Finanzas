@@ -8,6 +8,7 @@ import yfinance as yf
 import matplotlib.pyplot as plt
 import random as rd
 import string
+import asyncio
 
 
 # Definir su activo subyacente
@@ -22,7 +23,7 @@ def brownian_motion(S0, u, rf, num_days, sigma):
         price_series.append(price_series[-1]*(1+u*dt + sigma * np.random.normal(0, 1) * np.sqrt(dt)))
     return price_series 
 
-subyacente = brownian_motion(146, 0.1, 0.025, 80, 0.01)
+subyacente = brownian_motion(146, 0.1, 0.025, 90, 0.1)
 
 # Definimos los agentes involucrados dado que conectaron sus billeteras virtuales
 class user:    
@@ -70,6 +71,25 @@ order_book_s = pd.DataFrame(create_orders(False), columns=['Price', 'Size', 'Add
 #-----Entran los datos de la interfaz-----#
 leverage, cantidad, entryprice_long, entryprice_short = 10, 1, subyacente[0], subyacente[0]
 
+
+
+class user_order:
+        self.leverage = leverage
+        self.cantidad = cantidad
+        self.direction = direction
+        self.entry_price = entry_price              #User inputs... el active = true de user lo pondría aca.
+        self.state = state 
+        
+user_order(10, 1, "long", subyacente[0], "sent") #sent / matched / closed
+
+
+
+
+
+
+
+
+
 #Agrego la orden del usuario
 order_book_b.loc[len(order_book_b)+1] = [entryprice_long,cantidad, user_long.wallet_id]
 order_book_b = order_book_b.sort_values(by=['Price'], ascending=False).reset_index(drop=True)
@@ -99,7 +119,7 @@ for i in range(1,len(subyacente)):
             price = order_book_b['Price'][0]
             size = min(order_book_b['Size'][0], order_book_s['Size'][0])
             trades.loc[trade_num]=[price, size, subyacente[i]]
-            print(f'{size} matched at {price}')
+            print(f'{size} matched at {round(price,2)}')
             
             order_book_b['Size'][0] -= size 
             order_book_s['Size'][0] -= size 
@@ -126,7 +146,7 @@ for i in range(1,len(subyacente)):
         
         #Long
         if df.loc[i,"risk_long"] < -0.50 and df.loc[i,"risk_long"] > -0.8:
-            df.loc[i,"margin_state_long"] = "Called"
+            df.loc[i,"state_long"] = "Called"
             print(df)
             print(f"Hey, {user_long.name}, you just got a margin call ! Add more funds !")
             
@@ -169,7 +189,7 @@ for i in range(1,len(subyacente)):
         elif df.loc[i,"risk_long"] > -0.5:
              short_add += 0
  
-    #New orders
+    #New orders so the order book keeps running
     new_buy_orders=create_orders(market_price=i)
     for order in range(3):
         order_book_b.loc[len(order_book_b)+i] = new_buy_orders[order]
@@ -180,6 +200,25 @@ for i in range(1,len(subyacente)):
         order_book_s.loc[len(order_book_s)+i] = new_sell_orders[order]
     order_book_s = order_book_s.sort_values(by=['Price']).reset_index(drop=True)
 
+    #User Inputs; ODERS
     
     
+
+
+
+
+
+
+#Smart contract
+def smart_contract(user_order):  #necesitamos la variable de user order..
+    
+    if user_order.state = closed:
+        
+        
+        
+    
+    
+    
+    
+
     
