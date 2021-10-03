@@ -8,7 +8,8 @@ import time
 import matplotlib.pyplot as plt
 import random as rd
 import string
-#import asyncio
+
+adress_gen = string.ascii_letters + string.digits
 
 
 # Definir su activo subyacente
@@ -27,24 +28,31 @@ subyacente = brownian_motion(146, 0.1, 0.025, 10, 0.1)
 
 # Definimos los agentes involucrados dado que conectaron sus billeteras virtuales
 class user:    
-    def __init__(self, name, wallet_id, usdt, active): 
+    def __init__(self, name, wallet_id, usdt): 
         # Donde balance es el balance de stablecoins en la billetera de un usuario
         # Y la dirección es 1 para "LONG" y -1 para "SHORT"
         self.name = name
         self.wallet_id = wallet_id
         self.usdt = usdt
-        self.active = active
+        self.active = False
+  
+# Creamos un smart contract vacio para ser usado para el settlement
+class smart_contract:
+    def __init__(self, address, balance):
+        self.address = address
+        self.balance = balance
+        
+    def send_back(self):
+        sum_to_transfer = init_margin_long + df.loc[df.last_valid_index(),'margin_long'] 
+        user_long.usdt += sum_to_transfer
+        print(f'{sum_to_transfer} TRASFERRED TO USER LONG \n')
+
+smart_contract = smart_contract('abcd', 0)
+       
 
 # Estos fields van a venir de la interfaz        
-user_long = user("Jero", "01234", 10000, True)
-user_short = user("Juan","56789", 10000, True)     
-
-
-
-# RISK MANAGEMENT TOOL (CENTRALIZED) Para los cálculos del margen de cada agente        
-
-
-adress_gen = string.ascii_letters + string.digits
+user_long = user("Jero", "01234", 10000)
+user_short = user("Juan","56789", 10000)     
 
 
 
@@ -61,7 +69,7 @@ def create_orders(buy=True, market_price=0):
         address = [''.join(rd.choice(adress_gen) for i in range(10)) for j in range(3)]
         return [list(i) for i in zip(sell_orders,sell_orders_size, address)]
 
-trades = pd.DataFrame(columns=['Price','Size', 'Underlying Market Price', 'Contract id'])
+
 
 order_book_b = pd.DataFrame(create_orders(), columns=['Price', 'Size', 'Address']).sort_values(by=['Price'], ascending=False).reset_index(drop=True)
 order_book_s = pd.DataFrame(create_orders(False), columns=['Price', 'Size', 'Address']).sort_values(by=['Price']).reset_index(drop=True)
@@ -83,9 +91,8 @@ def add_user_order(entryprice, direction, cantidad, leverage):
             print("Short cannot enter position, margin need's more funds !")
         else:
             print('Trade can be entered')
-        
-        if direction == 'long':
         #Agrego la orden del usuario
+        if direction == 'long':
             order_book_b.loc[len(order_book_b)+1] = [entryprice, cantidad, user_long.wallet_id]
             order_book_b = order_book_b.sort_values(by=['Price'], ascending=False).reset_index(drop=True)
             
@@ -99,17 +106,22 @@ def add_user_order(entryprice, direction, cantidad, leverage):
         
 init_margin_long, init_margin_short = 0, 0    
 
+trades = pd.DataFrame(columns=['Price','Size', 'Underlying Market Price', 'Contract id'])
 
 def match_orders(i):
-    trade_num = 0
     global order_book_b, order_book_s
+    
     while max(order_book_b['Price']) >= min(order_book_s['Price']):
         if order_book_b['Price'][0] >= order_book_s['Price'][0]:
-            trade_num += 1 
             price = order_book_b['Price'][0]
             size = min(order_book_b['Size'][0], order_book_s['Size'][0])
-            trades.loc[trade_num]=[price, size, subyacente[i], order_book_b['Address'][0]+order_book_s['Address'][0]]
+            contract_id = order_book_b['Address'][0]
+            trades.loc[contract_id]=[price, size, subyacente[i], contract_id]
             print(f'{size} matched at {round(price,2)}')
+            
+            if contract_id == user_long.wallet_id:
+                user_long.active = True
+                print(f'User order matched {user_long.active} \n')
             
             order_book_b.loc[0,'Size'] -= size 
             order_book_s.loc[0,'Size'] -= size 
@@ -119,38 +131,35 @@ def match_orders(i):
                 
             if order_book_s.loc[0,'Size'] == 0:
                 order_book_s = order_book_s.drop(0).reset_index(drop=True)
-    
+ 
+leverage, cantidad = 10, 10
 
+df = pd.DataFrame({'Price':subyacente[0], 'margin_long':init_margin_long, 
+               'margin_short':init_margin_short,'pnl_long':0, 'pnl_short':0,
+               'state_long':np.nan, 'state_short':np.nan, 'risk_long':0, 
+               'risk_short':0}, index=[0])
+
+# RISK MANAGEMENT TOOL (CENTRALIZED) Para los cálculos del margen de cada agente  
 def main():
-    print('Main is running')
-    long_add = 0
-    short_add = 0
-    
-    global order_book_b, order_book_s
-    
+    long_add, short_add = 0, 0
+    global order_book_b, order_book_s, market_price, df
     for i in range(1,len(subyacente)):
-        print('Matching orders')
+        print(f'Market price: {subyacente[i]} \n')
         match_orders(i)
-    
+            
         ### SI la orden del usuario se matcheo... Mostrar el proceso
-        if user_long.wallet_id in trades['Contract id']:
+        if user_long.active == True:  
+            df.loc[i,'Price'] = trades['Price'][len(trades)-1] #Suponiendo q gabo. (en todo el script long=GABO)
+            entryprice = df.iloc[1,0]
+            df.loc[i,"risk_long"] = leverage * (((df.loc[i,"Price"] + long_add) / entryprice) -1)
+            df.loc[i,"risk_short"] = -leverage * (((df.loc[i,"Price"] - short_add) / entryprice) -1)
             
-            df = pd.DataFrame({'Price':subyacente[0], 'margin_long':init_margin_long, 
-                   'margin_short':init_margin_short,'pnl_long':0, 'pnl_short':0,
-                   'state_long':np.nan, 'state_short':np.nan, 'risk_long':0, 
-                   'risk_short':0}, index=[0])
-            
-            df.loc[i,'Price'] = trades['Price'][len(trades)] #Suponiendo q gabo. (en todo el script long=GABO)
-            
-            df.loc[i,"risk_long"] = leverage * (((df.loc[i,"Price"] + long_add) / entryprice_long) -1)
-            df.loc[i,"risk_short"] = -leverage * (((df.loc[i,"Price"] - short_add) / entryprice_short) -1)
-            
-            df.loc[i,"pnl_long"] = ((df.loc[i,"Price"] / entryprice_long) -1) * cantidad * entryprice_long
-            df.loc[i,"pnl_short"] = -((df.loc[i,"Price"] / entryprice_short) -1) * cantidad * entryprice_long
+            df.loc[i,"pnl_long"] = ((df.loc[i,"Price"] / entryprice) -1) * cantidad * entryprice
+            df.loc[i,"pnl_short"] = -((df.loc[i,"Price"] / entryprice) -1) * cantidad * entryprice
             
             df.loc[i,'margin_long'] = df.loc[i, 'pnl_long']+df.loc[0,'margin_long'] + long_add
             df.loc[i,'margin_short'] = df.loc[i, 'pnl_short']+df.loc[0,'margin_short'] + short_add
-        
+            print(df)
             
             #Long
             if df.loc[i,"risk_long"] < -0.50 and df.loc[i,"risk_long"] > -0.8:
@@ -196,7 +205,9 @@ def main():
                 
             elif df.loc[i,"risk_long"] > -0.5:
                  short_add += 0
-     
+                 
+
+            
         #New orders so the order book keeps running
         new_buy_orders=create_orders(market_price=i)
         for order in range(3):
@@ -210,11 +221,19 @@ def main():
                 
         yield
 
+#Esta seria la funcion que correria el boton "CLOSE POSITION" en la interfaz
+# Si el usuario quiere salir de su posicion el smart contract le deposita el margen en su cuenta     
+def change_user_state():
+    for i in [False, False, False, True]: #Esta lista de bools tiene que ser input del usuario en la interfaz
+        if i == True:
+            user_long.active = False
+            print('User closed position \n')
+            smart_contract.send_back()
+        yield
 
   
-def loop(tareas):
+def event_loop(tareas):
     while tareas:
-        print(tareas)
         actual = tareas.pop(0)
         try:
             print('-')
@@ -224,25 +243,4 @@ def loop(tareas):
             print(f'{actual} stopped iteration')
             pass
         
-loop([main(), add_user_order(146, 'long', 10, 10)])
-
-    
-
-
-
-
-
-
-#Smart contract
-def smart_contract(user_order):  #necesitamos la variable de user order..
-    
-    if user_order.state = closed:
-        
-        
-        
-    
-    
-    
-    
-
-    
+event_loop([main(), add_user_order(147, 'long', 10, 10), change_user_state()])
