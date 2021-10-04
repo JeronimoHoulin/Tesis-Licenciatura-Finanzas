@@ -180,6 +180,7 @@ def main():
             elif df.loc[i,"risk_long"] < -0.8:                 
                 df.loc[i,"state_long"] = "Liquidated"
                 print("Your position has been liquidated !")
+                user_long.active = False
                 
                 
             elif df.loc[i,"risk_long"] > -0.5:
@@ -202,6 +203,7 @@ def main():
             elif df.loc[i,"risk_short"] < -0.8:
                 df.loc[i,"state_short"] = "Liquidated"
                 print("Your position has been liquidated !")
+                user_long.active = False
                 
             elif df.loc[i,"risk_long"] > -0.5:
                  short_add += 0
@@ -222,10 +224,10 @@ def main():
         yield
 
 #Esta seria la funcion que correria el boton "CLOSE POSITION" en la interfaz
-# Si el usuario quiere salir de su posicion el smart contract le deposita el margen en su cuenta     
+#Si el usuario quiere salir de su posicion el smart contract le deposita el margen en su cuenta     
 def change_user_state():
-    for i in [False, False, False, True]: #Esta lista de bools tiene que ser input del usuario en la interfaz
-        if i == True:
+    for x in [False, False, False, True]: #Esta lista de bools tiene que ser input del usuario en la interfaz
+        if x == True:
             user_long.active = False
             print('User closed position \n')
             smart_contract.send_back()
@@ -243,4 +245,7 @@ def event_loop(tareas):
             print(f'{actual} stopped iteration')
             pass
         
-event_loop([main(), add_user_order(147, 'long', 10, 10), change_user_state()])
+event_loop([main(), add_user_order(147, 'long', 10, 10), change_user_state()]) #Las diferentes tareas
+
+
+
