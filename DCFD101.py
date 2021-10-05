@@ -24,7 +24,7 @@ def brownian_motion(S0, u, rf, num_days, sigma):
         price_series.append(price_series[-1]*(1+u*dt + sigma * np.random.normal(0, 1) * np.sqrt(dt)))
     return price_series 
 
-subyacente = brownian_motion(146, 0.1, 0.025, 10, 0.1)
+subyacente = brownian_motion(146, 0.1, 0.025, 120, 0.1)
 
 # Definimos los agentes involucrados dado que conectaron sus billeteras virtuales
 class user:    
@@ -80,7 +80,7 @@ def add_user_order(entryprice, direction, cantidad, leverage):
     global order_book_b, order_book_s, init_margin_long, init_margin_short, sent_orders    
 
     while sent_orders < 3:
-        time.sleep(3) 
+        time.sleep(5) 
         # Calculo el margen inicial
         init_margin_long =  entryprice * cantidad / leverage
         init_margin_short = entryprice * cantidad / leverage
@@ -226,7 +226,7 @@ def main():
 #Esta seria la funcion que correria el boton "CLOSE POSITION" en la interfaz
 #Si el usuario quiere salir de su posicion el smart contract le deposita el margen en su cuenta     
 def change_user_state():
-    for x in [False, False, False, True]: #Esta lista de bools tiene que ser input del usuario en la interfaz
+    for x in [True]: 
         if x == True:
             user_long.active = False
             print('User closed position \n')
@@ -246,6 +246,4 @@ def event_loop(tareas):
             pass
         
 event_loop([main(), add_user_order(147, 'long', 10, 10), change_user_state()]) #Las diferentes tareas
-
-
 
