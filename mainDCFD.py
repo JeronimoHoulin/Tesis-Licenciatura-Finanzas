@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import yfinance as yf
 import string
 
+
 adress_gen = string.ascii_letters + string.digits
 
 st.write(""" 
@@ -21,11 +22,14 @@ st.sidebar.write('Panel de Trading')
 ticker = st.sidebar.selectbox('Select Strategy', ('AAPL','GME'))
 side1, side2= st.sidebar.columns(2)
 with st.sidebar.form(key='form1'):
+    
     leverage = st.slider('Select Leverage', min_value=(1), max_value=(100))
-    amount = st.number_input('Enter Quantity')
-    #st.form_submit_button()
+    cantidad = st.number_input('Enter Quantity', step =1)
     buy = st.form_submit_button('Buy')
     sell = st.form_submit_button('Sell')
+    closebuy = st.form_submit_button('Close Buy')
+    closesell = st.form_submit_button('Close Sell')
+    print(leverage, cantidad, buy, sell, closebuy, closesell)
     
     
 
@@ -65,11 +69,17 @@ class smart_contract:
         self.address = address
         self.balance = balance
         
-    def send_back(self):
-        sum_to_transfer = init_margin_long + df.loc[df.last_valid_index(),'margin_long'] 
+    def send_back_long(self):
+        sum_to_transfer =  df.loc[df.last_valid_index(),'margin_long'] #init_margin_long +
         user_long.usdt += sum_to_transfer
         self.balance -= sum_to_transfer
         print(f'{sum_to_transfer} TRASFERRED TO USER LONG \n')
+        
+    def send_back_short(self):
+        sum_to_transfer =  df.loc[df.last_valid_index(),'margin_short'] #init_margin_short +
+        user_short.usdt += sum_to_transfer
+        self.balance -= sum_to_transfer
+        print(f'{sum_to_transfer} TRASFERRED TO USER SHORT \n')
 
 
 smart_contract = smart_contract('abcd', 0)
@@ -79,18 +89,10 @@ smart_contract = smart_contract('abcd', 0)
 user_long = user("Jero", "01234", 10000)
 user_short = user("Juan","56789", 10000)     
 
-#sub = yf.download(f"{ticker}",period="1m")['Close'][0]
-#subyacente = pd.DataFrame(sub,columns=['price'], index=[0])
+
 subyacente = pd.read_csv('sub.csv')
 
-def brownian_motion(df, u, rf, sigma):  
-    dt = 1/360
-    while True:
-        price = df.loc[df.index[-1], 'price']*(1+u*dt + sigma * np.random.normal(0, 1) * np.sqrt(dt))
-        df.loc[df.index[-1]+1] = price
-        df.to_csv('sub.csv')
-        yield
-    
+
 
 ''' Order Book '''
 def create_orders(market_price,buy=True):
@@ -112,10 +114,16 @@ order_book_s = pd.DataFrame(create_orders(subyacente['price'][0],False), columns
 
 
 df = pd.DataFrame() 
-def add_user_order(entryprice, direction, cantidad, leverage):
+def add_user_order(entryprice, cantidad, leverage):
 
-    global order_book_b, order_book_s, init_margin_long, init_margin_short, sent_orders, df    
+    global order_book_b, order_book_s, init_margin_long, init_margin_short, sent_orders, df, buy, sell    
+
     
+    if buy == True: 
+        direction = "long"
+    if sell == True: 
+        direction = "sell"
+        
     #time.sleep(3) 
     # Calculo el margen inicial
     init_margin_long =  entryprice * cantidad / leverage
@@ -139,6 +147,10 @@ def add_user_order(entryprice, direction, cantidad, leverage):
     df.loc[0, ['Price', 'margin_long', 'margin_short', 'pnl_long',
                'pnl_short', 'state_long', 'state_short', 'risk_long', 'risk_short']] = \
         [entryprice, init_margin_long, init_margin_short, 0, 0, 0, 0, 0, 0]
+        
+        
+    buy = False
+    sell = False
 
     yield
         
@@ -156,7 +168,7 @@ def match_orders(i):
             contract_id = order_book_b['Address'][0]
             trades.loc[contract_id]=[price, size, i, contract_id]
             info_slot.write(f'\n {size} DCFDs entered at ${round(price,2)}')
-            print(f'{size} matched at {round(price,2)}')
+            #print(f'{size} matched at {round(price,2)}')
             
             if contract_id == user_long.wallet_id: #Si la orden del usuario se matcheo...
                 user_long.active = True
@@ -173,7 +185,7 @@ def match_orders(i):
             if order_book_s.loc[0,'Size'] == 0:
                 order_book_s = order_book_s.drop(0).reset_index(drop=True)
  
-leverage, cantidad = 10, 10
+
 
 
 
@@ -183,7 +195,7 @@ leverage, cantidad = 10, 10
 # RISK MANAGEMENT TOOL (CENTRALIZED) Para los cálculos del margen de cada agente  
 
 def main():
-    global order_book_b, order_book_s, market_price, df, subyacente
+    global order_book_b, order_book_s, market_price, df, subyacente, leverage, cantidad
     while True:
         subyacente = pd.read_csv('sub.csv')   
         fig, ax = plt.subplots()
@@ -213,7 +225,7 @@ def main():
             #Long
             if df.loc[i,"risk_long"] < -0.50 and df.loc[i,"risk_long"] > -0.8:
                 df.loc[i,"state_long"] = "Called"
-                print(df)
+                #print(df)
                 print(f"Hey, {user_long.name}, you just got a margin call ! Add more funds !")
         
             elif df.loc[i,"risk_long"] < -0.8:                 
@@ -254,12 +266,27 @@ def main():
 
 #Esta seria la funcion que correria el boton "CLOSE POSITION" en la interfaz
 # Si el usuario quiere salir de su posicion el smart contract le deposita el margen en su cuenta     
-def change_user_state():
-    for i in [False, False, False, False, False, False, True]: #Esta lista de bools tiene que ser input del usuario en la interfaz
-        if i == True:
+def check_user_state():
+    while True:
+        
+        if buy == True or sell == True: 
+            add_user_order(subyacente.loc[subyacente.index[-1],'price'], leverage = leverage, cantidad = cantidad)
+            
+            
+        if closebuy == True:
+            
             user_long.active = False
-            print('User closed position \n')
-            smart_contract.send_back()
+            print('User long closed position \n')
+            smart_contract.send_back_long()
+            
+        if closesell == True:
+            
+            user_short.active = False
+            print('User short closed position \n')
+            smart_contract.send_back_short()
+        
+        
+
         yield
 
   
@@ -267,13 +294,21 @@ def event_loop(tareas):
     while tareas:
         actual = tareas.pop(0)
         try:
-            print('-')
+            #print('-')
             next(actual)
             tareas.append(actual)
         except StopIteration:
-            print(f'{actual} stopped iteration')
+            #print(f'{actual} stopped iteration')
             pass
         
 #brownian_motion(subyacente, 0.1, 0, 0.2)
-event_loop([main(), add_user_order(subyacente.loc[subyacente.index[-1],'price'], 'long', 10, 10), change_user_state()])
+event_loop([main(), check_user_state()])
+
+
+
+
+
+
+
+
 
