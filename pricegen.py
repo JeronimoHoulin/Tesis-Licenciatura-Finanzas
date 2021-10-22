@@ -16,4 +16,3 @@ while True:
     brownian_motion(price_series, 0.1, 0.025, 1, 0.1)
     time.sleep(1)
     price_series.to_csv('sub.csv')
-    
