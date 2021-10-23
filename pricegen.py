@@ -15,4 +15,6 @@ price_series = pd.DataFrame(sub,columns=['price'], index=[0])
 while True:
     brownian_motion(price_series, 0.1, 0.025, 1, 0.1)
     time.sleep(1)
+    if len(price_series) > 50:
+        price_series = price_series[-50:]
     price_series.to_csv('sub.csv')
