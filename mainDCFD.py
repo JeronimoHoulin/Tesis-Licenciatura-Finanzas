@@ -10,7 +10,7 @@ import random as rd
 import matplotlib.pyplot as plt
 import yfinance as yf
 import string
-
+st.set_page_config(layout="wide")
 
 adress_gen = string.ascii_letters + string.digits
 
@@ -33,8 +33,6 @@ with st.sidebar.form(key='form1'):
     
     
 
-
-
 col1, col2 = st.columns([1, 2.5])
 col2.write('Underlying Asset Price')
 col1.write('Order Book')
@@ -43,7 +41,7 @@ plot_slot = col2.empty()
 margin_plot = col2.empty()
 trade_df = col2.empty()
 
-
+balance_slot = st.sidebar.empty()
 
 sell_df = col1.empty()
 metric_slot = col1.empty()
@@ -113,48 +111,8 @@ order_book_b = pd.DataFrame(create_orders(subyacente['price'][0]), columns=['Pri
 order_book_s = pd.DataFrame(create_orders(subyacente['price'][0],False), columns=['Price', 'Size', 'Address']).sort_values(by=['Price']).reset_index(drop=True)
 
 
-df = pd.DataFrame() 
-def add_user_order(entryprice, cantidad, leverage):
+#df = pd.DataFrame() 
 
-    global order_book_b, order_book_s, init_margin_long, init_margin_short, sent_orders, df, buy, sell    
-
-    
-    if buy == True: 
-        direction = "long"
-    if sell == True: 
-        direction = "sell"
-        
-    #time.sleep(3) 
-    # Calculo el margen inicial
-    init_margin_long =  entryprice * cantidad / leverage
-    init_margin_short = entryprice * cantidad / leverage
-    #Checkeo de si les dá el balance en USDT para entrar en el contrato
-    if init_margin_long > user_long.usdt:
-        print("Long cannot enter position, margin need's more funds !")
-    elif init_margin_short > user_short.usdt:
-        print("Short cannot enter position, margin need's more funds !")
-    else:
-        print('Trade can be entered')
-    #Agrego la orden del usuario
-    if direction == 'long':
-        order_book_b.loc[len(order_book_b)+1] = [entryprice, cantidad, user_long.wallet_id]
-        order_book_b = order_book_b.sort_values(by=['Price'], ascending=False).reset_index(drop=True)
-        
-    if direction == 'sell':
-        order_book_s.loc[len(order_book_s)+1] = [entryprice, cantidad, user_short.wallet_id]
-        order_book_s = order_book_s.sort_values(by=['Price']).reset_index(drop=True)
-        
-    df.loc[0, ['Price', 'margin_long', 'margin_short', 'pnl_long',
-               'pnl_short', 'state_long', 'state_short', 'risk_long', 'risk_short']] = \
-        [entryprice, init_margin_long, init_margin_short, 0, 0, 0, 0, 0, 0]
-        
-        
-    buy = False
-    sell = False
-
-    yield
-        
-#init_margin_long, init_margin_short = 0, 0    
 
 trades = pd.DataFrame(columns=['Price','Size', 'MP', 'Contract id'])
 
@@ -169,12 +127,6 @@ def match_orders(i):
             trades.loc[contract_id]=[price, size, i, contract_id]
             info_slot.write(f'\n {size} DCFDs entered at ${round(price,2)}')
             #print(f'{size} matched at {round(price,2)}')
-            
-            if contract_id == user_long.wallet_id: #Si la orden del usuario se matcheo...
-                user_long.active = True
-                user_long.usdt -= init_margin_long
-                smart_contract.balance += init_margin_long
-                print(f'User order matched {user_long.active} \n')
             
             order_book_b.loc[0,'Size'] -= size 
             order_book_s.loc[0,'Size'] -= size 
@@ -194,8 +146,9 @@ def match_orders(i):
  
 # RISK MANAGEMENT TOOL (CENTRALIZED) Para los cálculos del margen de cada agente  
 
+counter = 0
 def main():
-    global order_book_b, order_book_s, market_price, df, subyacente, leverage, cantidad
+    global order_book_b, order_book_s, market_price, df, subyacente, leverage, cantidad, counter, balance_slot, buy
     while True:
         subyacente = pd.read_csv('sub.csv')   
         fig, ax = plt.subplots()
@@ -204,9 +157,47 @@ def main():
         fig.set_figwidth(15)
         plot_slot.pyplot(fig)
         
-        i = subyacente.loc[subyacente.index[-1],'price']
-        match_orders(i)
+        i = round(subyacente.loc[subyacente.index[-1],'price'],3)
+        print(counter)
+        if buy == True and counter == 0: #or sell == True: 
+            counter =+ 1
+            #add_user_order(subyacente.loc[subyacente.index[-1],'price'], leverage = leverage, cantidad = cantidad)
+            user_long.active = True
+            df = pd.DataFrame()
+            init_margin_long = init_margin_short = i* cantidad / leverage
+            df.loc[0, ['Price', 'margin_long', 'margin_short', 'pnl_long',
+               'pnl_short', 'state_long', 'state_short', 'risk_long', 'risk_short']] = [i, init_margin_long, init_margin_short, 0, 0, 0, 0, 0, 0]
+            user_long.usdt = user_long.usdt - init_margin_long
+            print(f'user balance {user_long.usdt}')
             
+        print('closebuy: {closebuy}')        
+        if closebuy == True and counter == 1:
+            counter = 1
+            print('User long closed position \n')
+            user_long.usdt =+ 30000
+            #smart_contract.send_back_long()
+            user_long.active = False
+            buy = False
+
+        if sell == True and counter == 0: #or sell == True: 
+            counter =+ 1
+            #add_user_order(subyacente.loc[subyacente.index[-1],'price'], leverage = leverage, cantidad = cantidad)
+            user_long.active = True
+            df = pd.DataFrame()
+            init_margin_long, init_margin_short = i, i
+            df.loc[0, ['Price', 'margin_long', 'margin_short', 'pnl_long',
+               'pnl_short', 'state_long', 'state_short', 'risk_long', 'risk_short']] = [i, init_margin_long, init_margin_short, 0, 0, 0, 0, 0, 0]
+            
+            if closesell == True:
+                user_short.active = False
+                print('User short closed position \n')
+                smart_contract.send_back_short()
+        
+        
+        match_orders(i)
+        
+        
+             
         ### SI la orden del usuario se matcheo... Mostrar el proceso
         if user_long.active == True:  
             df.loc[i,'Price'] = trades['Price'][len(trades)-1] #Suponiendo q gabo. (en todo el script long=GABO)
@@ -217,8 +208,8 @@ def main():
             df.loc[i,"pnl_long"] = ((df.loc[i,"Price"] / entryprice) -1) * cantidad * entryprice
             df.loc[i,"pnl_short"] = -((df.loc[i,"Price"] / entryprice) -1) * cantidad * entryprice
     
-            df.loc[i,'margin_long'] = df.iloc[-1,3]+df.iloc[-2,1] 
-            df.loc[i,'margin_short'] = df.iloc[-1,4]+df.iloc[-2,2] 
+            df.loc[i,'margin_long'] = round(df.iloc[-1,3]+df.iloc[-2,1],2) 
+            df.loc[i,'margin_short'] = round(df.iloc[-1,4]+df.iloc[-2,2],2)
             
             margin_plot.bar_chart(df[['margin_long', 'margin_short']])
             
@@ -255,39 +246,17 @@ def main():
         new_sell_orders=create_orders(i,False)
         for order in range(3):
             order_book_s.loc[len(order_book_s)+i] = new_sell_orders[order]
-            
         order_book_s = order_book_s.sort_values(by=['Price']).reset_index(drop=True)
+        
         metric_slot.metric(label='Underlying Price', value=round(i,2), delta=round(i-subyacente.loc[subyacente.index[-2], 'price'],3))
         trades_slot.dataframe(trades)
         sell_df.dataframe(order_book_s.sort_values(by=['Price'], ascending=False).reset_index(drop=True)[:9])
         buy_df.dataframe(order_book_b[:9])
+        print(f'User state: {user_long.active}')
+        balance_slot.write(f'User balance: {user_long.usdt}')
         
         yield
 
-#Esta seria la funcion que correria el boton "CLOSE POSITION" en la interfaz
-# Si el usuario quiere salir de su posicion el smart contract le deposita el margen en su cuenta     
-def check_user_state():
-    while True:
-        
-        if buy == True or sell == True: 
-            add_user_order(subyacente.loc[subyacente.index[-1],'price'], leverage = leverage, cantidad = cantidad)
-            
-            
-        if closebuy == True:
-            
-            user_long.active = False
-            print('User long closed position \n')
-            smart_contract.send_back_long()
-            
-        if closesell == True:
-            
-            user_short.active = False
-            print('User short closed position \n')
-            smart_contract.send_back_short()
-        
-        
-
-        yield
 
   
 def event_loop(tareas):
@@ -302,13 +271,4 @@ def event_loop(tareas):
             pass
         
 #brownian_motion(subyacente, 0.1, 0, 0.2)
-event_loop([main(), check_user_state()])
-
-
-
-
-
-
-
-
-
+event_loop([main()])
