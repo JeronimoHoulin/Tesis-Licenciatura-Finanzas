@@ -40,6 +40,7 @@ col2.write('Underlying Asset Price')
 col1.write('Order Book')
 
 plot_slot = col2.empty()
+smart_contract_balance_title = col2.empty()
 margin_plot = col2.empty()
 trade_df = col2.empty()
 order_history = col2.empty()
@@ -139,10 +140,14 @@ def match_orders(i):
             if order_book_s.loc[0,'Size'] == 0:
                 order_book_s = order_book_s.drop(0).reset_index(drop=True)
  
-
-# RISK MANAGEMENT TOOL (CENTRALIZED) Para los cálculos del margen de cada agente      
+# RISK MANAGEMENT TOOL (CENTRALIZED) Para los cálculos del margen de cada agente
+#df1 = pd.DataFrame(columns = ["Entry Price", "Exit Price", "Direction", "P&L"])
+df1 = pd.read_csv('order_history.csv')
+df1 = df1[["Entry Price", "Exit Price", "Direction", "P&L", "Balance"]]
+if len(df1)>0:
+    user.usdt = df1.Balance[df1.index[-1]]
 def main():
-    global order_book_b, order_book_s, market_price, df, subyacente, leverage, cantidad, counter, buy, sell, closesell, closebuy
+    global order_book_b, order_book_s, market_price, df, subyacente, leverage, cantidad, counter, buy, sell, closesell, closebuy, df1
     while True:
         subyacente = pd.read_csv('sub.csv')   
         fig, ax = plt.subplots()
@@ -155,7 +160,8 @@ def main():
         
         ## If Buy orders ##
 
-        if buy == True and user.active == False: 
+        if buy == True and user.active == False:
+            trade = 1 
             print('BUY ORDER \n')
             user.active = True
             df = pd.DataFrame()
@@ -165,21 +171,16 @@ def main():
             user.usdt = user.usdt - init_margin_long
             
             
-            #print(f'user balance {user_long.usdt}')
-
-            
         if closebuy == True:
             print('User long closed position \n')
             df = pd.read_csv('df.csv')
 
             smart_contract.send_back_long() ##hacer que se envie en margen a wallet del smart.
             
-            df1 = pd.DataFrame(columns = ["Entry Price", "Exit Price", "Direction", "P&L"])
-            df1 = df1.append({'Entry Price':df.Price[df.index[0]],'Exit Price':df.Price[df.index[-1]], 'Direction': 'Long', 'P&L': df.pnl_long[df.index[-1]] }, ignore_index=True)
-            
+            df1 = df1.append({'Entry Price':df.Price[df.index[0]],'Exit Price':df.Price[df.index[-1]], 'Direction': 'Long', 'P&L': df.pnl_long[df.index[-1]], 'Balance': user.usdt}, ignore_index=True)
+            df1.to_csv('order_history.csv')
             order_history.dataframe(df1)
             
-
             os.remove("df.csv")
             
             user.active = False
@@ -207,9 +208,8 @@ def main():
 
             smart_contract.send_back_short() ##hacer que se envie en margen a wallet del smart.
             
-            df1 = pd.DataFrame(columns = ["Entry Price", "Exit Price", "Direction", "P&L"])
-            df1 = df1.append({'Entry Price':df.Price[df.index[0]],'Exit Price':df.Price[df.index[-1]], 'Direction': 'Short', 'P&L': df.pnl_short[df.index[-1]] }, ignore_index=True)
-            
+            df1 = df1.append({'Entry Price':df.Price[df.index[0]],'Exit Price':df.Price[df.index[-1]], 'Direction': 'Short', 'P&L': df.pnl_short[df.index[-1]], 'Balance': user.usdt }, ignore_index=True)
+            df1.to_csv('order_history.csv')
             order_history.dataframe(df1)
             
 
@@ -226,12 +226,10 @@ def main():
 
             
         match_orders(i)
-        
-        
+             
              
         ### SI la orden del usuario se matcheo... Mostrar el proceso
         #0 = active, 1 = called, 3 = liquidated
-        
         if user.active == True:  
             df.loc[i,'Price'] = trades['Price'][len(trades)-1] 
             entryprice = df.loc[df.index[0],'Price']
@@ -247,17 +245,14 @@ def main():
             df.loc[i, 'balance_long'] = user.usdt
             df.loc[i, 'balance_short'] = user.usdt
             
-            """
-            df2 = pd.DataFrame(columns = ["Values", "Names"], index=["Margin Long", "Margin Short"])
-            df2.Names["Long"] = "Margin Long"
-            df2.Names["Short"] = "Margin Short"
-            df2.Values["Long"] = df.loc[-1,'margin_long'][-1]
-            df2.Values["Short"] = df.loc[-1,'margin_short'][-1]
-            """
-            #fig = px.pie(df2, values='Values', names='Names')
-            #margin_plot.write(fig)
-            margin_plot.bar_chart(df[['margin_long', 'margin_short']])
-            #margin_plot.bar_chart(df2.Values)
+            smart_contract_balance_title.write('Smart Contract Balance')
+            fig1, ax1 = plt.subplots()
+            ax1.pie([df.margin_long[df.index[-1]],df.margin_short[df.index[-1]]],autopct='%1.1f%%', labels=['Margin Long', 'Margin Short'], startangle=90)
+            ax1.axis('equal')
+            fig1.set_figheight(3) 
+            fig1.set_figwidth(3)
+            margin_plot.pyplot(fig1)
+
             #Long
             if df.loc[i,"risk_long"] < -0.50 and df.loc[i,"risk_long"] > -0.8:
                 df.loc[i,"state_long"] = 1
@@ -306,7 +301,7 @@ def main():
         sell_df.dataframe(order_book_s.sort_values(by=['Price'], ascending=False).reset_index(drop=True)[:9])
         buy_df.dataframe(order_book_b[:9])
         print(f'User state: {user.active}')
-        balance_slot.write(f'User balance: {round(user.usdt,2)}')
+        balance_slot.write(f'User balance: ${round(user.usdt,2)}')
         
         yield
 
