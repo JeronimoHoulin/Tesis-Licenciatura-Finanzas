@@ -19,6 +19,7 @@ for i in range(50):
     brownian_motion(price_series, 0.1, 0.025, 1, 0.1)
     price_series['Ema-5'] = price_series.price.ewm(span=5).mean()
     price_series['Ema-20'] = price_series.price.ewm(span=20).mean()
+    
 while True:
     brownian_motion(price_series, 0.1, 0.025, 1, 0.1)
     price_series['Ema-5'] = price_series.price.ewm(span=5).mean()
