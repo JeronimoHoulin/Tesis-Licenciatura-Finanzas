@@ -27,9 +27,9 @@ with st.sidebar.form(key='form1'):
     cantidad = st.number_input('Enter Quantity', step =1, value=1)
     buy = st.form_submit_button('Long')
     sell = st.form_submit_button('Short')
-    closebuy = st.form_submit_button('Close Long')
-    closesell = st.form_submit_button('Close Short')
-    print(f'{leverage}, {cantidad}, {buy}, {sell}, {closebuy}, {closesell} \n')
+    closep = st.form_submit_button('Close Position')
+    #closesell = st.form_submit_button('Close Short')
+   # print(f'{leverage}, {cantidad}, {buy}, {sell}, {closep} \n')
     
     
 col1, col2 = st.columns([1, 2.5])
@@ -141,7 +141,7 @@ if len(df1)>0:
     
 # RISK MANAGEMENT TOOL (CENTRALIZED) Para los cálculos del margen de cada agente  
 def main():
-    global order_book_b, order_book_s, market_price, df, subyacente, leverage, cantidad, buy, sell, closesell, closebuy, df1
+    global order_book_b, order_book_s, market_price, df, subyacente, leverage, cantidad, buy, sell, closep, df1
     while True:
         # LEYENDO Y GRAFICANDO EL MOVIMIENTO DEL SUBYACENTE GENERADO POR PRICEGEN NOTEBOOK
         subyacente = pd.read_csv('sub.csv')  
@@ -161,21 +161,8 @@ def main():
                               'P&L': 0, 'Balance': df.Balance[df.index[-1]]}, ignore_index=True)
             df1.to_csv('order_history.csv')
             order_history.dataframe(df1) #Show the user's open position
-
             
-        ## CLOSING BUY orders ##   
-        if closebuy == True:
-            df = pd.read_csv('df.csv')
-            smart_contract.send_back_long() ##hacer que se envie en margen a wallet del smart.
             
-            df1 = df1.append({'Entry Price':df.Price[df.index[0]],'Exit Price':df.Price[df.index[-1]], 'Quantity':cantidad, 'Direction': 'Long',
-                              'P&L': df.margin_long[df.index[-1]]-df.margin_long[df.index[0]], 'Balance': df.Balance[df.index[-1]]}, ignore_index=True)
-            df1.to_csv('order_history.csv')
-            order_history.dataframe(df1)
-            
-            user.active = False
-            buy = False
-            closebuy = False
             
         ## SELL orders ##
         if sell == True and user.active == False: 
@@ -190,22 +177,33 @@ def main():
             df1.to_csv('order_history.csv')
             order_history.dataframe(df1) #Show the user's open position
             
-
-        ## SELL orders ##     
-        if closesell == True:
-            print('User short closed position \n')
+        ## CLOSING orders ##   
+        if closep == True:
             df = pd.read_csv('df.csv')
-
-            smart_contract.send_back_short() ##hacer que se envie en margen a wallet del smart.
+            if buy == True: 
+                smart_contract.send_back_long() ##hacer que se envie en margen a wallet del smart.
+                df1 = df1.append({'Entry Price':df.Price[df.index[0]],'Exit Price':df.Price[df.index[-1]], 'Quantity':cantidad, 'Direction': 'Long',
+                                  'P&L': df.margin_long[df.index[-1]]-df.margin_long[df.index[0]], 'Balance': df.Balance[df.index[-1]]}, ignore_index=True)
+                df1.to_csv('order_history.csv')
+                order_history.dataframe(df1)
+                
+                user.active = False
+                buy = False
+                closep = False
+                
+            else:
+                smart_contract.send_back_short() ##hacer que se envie en margen a wallet del smart.
+                df1 = df1.append({'Entry Price':df.Price[df.index[0]],'Exit Price':df.Price[df.index[-1]], 'Quantity':cantidad, 'Direction': 'Short',
+                                  'P&L': df.margin_short[df.index[-1]]-df.margin_short[df.index[0]], 'Balance': df.Balance[df.index[-1]]}, ignore_index=True)
+                df1.to_csv('order_history.csv')
+                order_history.dataframe(df1)
+                
+                user.active = False
+                sell = False
+                closep = False
             
-            df1 = df1.append({'Entry Price':df.Price[df.index[0]],'Exit Price':df.Price[df.index[-1]], 'Quantity':cantidad, 'Direction': 'Short',
-                              'P&L': df.margin_short[df.index[-1]]-df.margin_short[df.index[0]], 'Balance': df.Balance[df.index[-1]]}, ignore_index=True)
-            df1.to_csv('order_history.csv')
-            order_history.dataframe(df1)
+    
             
-            user.active = False
-            sell = False
-            closesell = False
 
         match_orders(i)
                 
@@ -328,7 +326,6 @@ def event_loop(tareas):
             pass
         
 event_loop([main()])
-
 
 
 
