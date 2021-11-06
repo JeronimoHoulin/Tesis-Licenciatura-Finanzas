@@ -7,7 +7,6 @@ import streamlit as st
 import random as rd
 import matplotlib.pyplot as plt
 import string
-import os
 import plotly.express as px
 
 plt.style.use('dark_background')
