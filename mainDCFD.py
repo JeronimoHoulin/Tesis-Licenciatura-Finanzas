@@ -1,13 +1,14 @@
-""" Created on Sat Sep 18 09:49:34 2021 Jero & Juan """
-
+"""
+Created on Sat Sep 18 09:49:34 2021
+Jero & Juan
+"""
 import pandas as pd
-import numpy as np
-import time
 import streamlit as st
 import random as rd
 import matplotlib.pyplot as plt
 import string
 import plotly.express as px
+import time
 
 plt.style.use('dark_background')
 
@@ -56,13 +57,14 @@ trades_slot = col1.empty()
 class user:    
     def __init__(self, name, wallet_id, usdt): 
         # Donde balance es el balance de stablecoins en la billetera de un usuario
+        # Y la dirección es 1 para "LONG" y -1 para "SHORT"
         self.name = name
         self.wallet_id = wallet_id
         self.usdt = usdt
         self.active = False
   
 # Creamos un smart contract vacio para ser usado para el settlement
-class smart_contract:
+class smart_contract: ##WEB3 PARA ESTO.
     def __init__(self, address, balance):
         self.address = address
         self.balance = balance
@@ -92,15 +94,15 @@ subyacente = pd.read_csv('sub.csv')
 ''' Order Book '''
 def create_orders(market_price,buy=True):
     if buy:
-        buy_orders_price = [market_price*(1-i/1500) for i in range(3)]
-        buy_orders_size = [rd.randint(1, i) for i in np.linspace(10,50,3)]
+        buy_orders = [market_price*(1-i/1500) for i in range(3)]
+        buy_orders_size = [rd.randint(1, i) for i in range(100,10,-30)]
         address = [''.join(rd.choice(adress_gen) for i in range(10)) for j in range(3)]
-        return [list(i) for i in zip(buy_orders_price, buy_orders_size, address)]
+        return [list(i) for i in zip(buy_orders, buy_orders_size, address)]
     else:
-        sell_orders_price = [market_price*(1+i/1500) for i in range(3)]
-        sell_orders_size = [rd.randint(1, i) for i in np.linspace(10,50,3)]
+        sell_orders = [market_price*(1+i/1500) for i in range(3)]
+        sell_orders_size = [rd.randint(1, i) for i in range(100,10,-30)]
         address = [''.join(rd.choice(adress_gen) for i in range(10)) for j in range(3)]
-        return [list(i) for i in zip(sell_orders_price,sell_orders_size, address)]
+        return [list(i) for i in zip(sell_orders,sell_orders_size, address)]
 
 
 order_book_b = pd.DataFrame(create_orders(subyacente['price'][0]), columns=['Price', 'Size', 'Address']).sort_values(by=['Price'], ascending=False).reset_index(drop=True)
@@ -143,14 +145,16 @@ def main():
     global order_book_b, order_book_s, market_price, df, subyacente, leverage, cantidad, buy, sell, closep, df1
     while True:
         # LEYENDO Y GRAFICANDO EL MOVIMIENTO DEL SUBYACENTE GENERADO POR PRICEGEN NOTEBOOK
+        
         try:
             subyacente = pd.read_csv('sub.csv')
         except:
             time.sleep(0.01)
-            subyacente = pd.read_csv('sub.csv')
+            subyacente = pd.read_csv('sub.csv') 
             
         fig = px.line(subyacente, x= subyacente.index, y=['price','Ema-5', 'Ema-20'], color_discrete_sequence = ['orange','red', 'green'], title='Underlying Asset Price')
         plot_slot.plotly_chart(fig)
+        
         i = round(subyacente.loc[subyacente.index[-1],'price'],3)
         
         ## BUY orders ##
@@ -184,14 +188,13 @@ def main():
         ## CLOSING orders ##   
         if closep == True:
             df = pd.read_csv('df.csv')
-            
             if df1.loc[df1.index[-1], 'Direction'] == 'Long': 
                 smart_contract.send_back_long() ##hacer que se envie en margen a wallet del smart.
                 df1 = df1.append({'Entry Price':df.Price[df.index[0]],'Exit Price':df.Price[df.index[-1]], 'Quantity':cantidad, 'Direction': 'Long',
                                   'P&L': df.margin_long[df.index[-1]]-df.margin_long[df.index[0]], 'Balance': df.Balance[df.index[-1]]}, ignore_index=True)
                 df1.to_csv('order_history.csv')
                 order_history.dataframe(df1)
-                print('Se ejecuto esto')
+                
                 user.active = False
                 buy = False
                 closep = False
@@ -202,7 +205,7 @@ def main():
                                   'P&L': df.margin_short[df.index[-1]]-df.margin_short[df.index[0]], 'Balance': df.Balance[df.index[-1]]}, ignore_index=True)
                 df1.to_csv('order_history.csv')
                 order_history.dataframe(df1)
-                print('Se ejecuto esto otro')
+                
                 user.active = False
                 sell = False
                 closep = False
@@ -331,10 +334,5 @@ def event_loop(tareas):
             pass
         
 event_loop([main()])
-
-
-
-
-
 
 
