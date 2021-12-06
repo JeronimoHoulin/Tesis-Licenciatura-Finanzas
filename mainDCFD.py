@@ -307,16 +307,16 @@ def main():
     
         #New orders so the order book keeps running
         new_buy_orders = create_orders(i, 2, 'buy')
-        order_book_b = order_book_b.append(new_buy_orders).sort_values(by=['Price'], ascending=False).reset_index(drop=True).head(9)
+        order_book_b = order_book_b.append(new_buy_orders).sort_values(by=['Price'], ascending=False).reset_index(drop=True)
 
         new_sell_orders = create_orders(i, 2, 'sell')
-        order_book_s = order_book_s.append(new_sell_orders).sort_values(by=['Price']).reset_index(drop=True).tail(9)
+        order_book_s = order_book_s.append(new_sell_orders).sort_values(by=['Price']).reset_index(drop=True)
         
         # Displaying things in Streamlit 
         metric_slot.metric(label='Underlying Price', value=round(i,2), delta=round(i-subyacente.loc[subyacente.index[-2], 'price'],3))
         trades_slot.dataframe(trades.sort_values(by='trade', ascending=False))
-        sell_df.dataframe(order_book_s.sort_values(by=['Price'], ascending=False).reset_index(drop=True))
-        buy_df.dataframe(order_book_b)
+        sell_df.dataframe(order_book_s.sort_values(by=['Price'], ascending=False).reset_index(drop=True).tail(9))
+        buy_df.dataframe(order_book_b.head(9))
         
         if len(df1)>0: #Si existe el df de order history tomar el balance de ahi.
             user.usdt = df1.Balance[df1.index[-1]]
