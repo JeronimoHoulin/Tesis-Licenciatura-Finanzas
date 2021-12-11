@@ -1,7 +1,5 @@
 """ Created on Sat Sep 18 09:49:34 2021 Jero & Juan """
 
-#hey
-
 import pandas as pd
 import numpy as np
 import time
